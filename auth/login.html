@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> Auction Site - Login</title>
+</head>
+<body>
+    <h1>Welcom to the Auction Site</h1>
+    <h2>Login</h2>
+    <!-- Login Form -->
+    <form aciton="/cgi-bin/auth.cgi" method="POST">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" required>
+        <br><br>
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required>
+        <br><br>
+        <button type="submit" name="action" value="login">Submit</button>
+    </form>
+    <hr>
+    <!-- Registration Form -->
+    <form aciton="/cgi-bin/auth.cgi" method="POST">
+        <label for="req_email">Email Address</label>
+        <input type="req_email" id="req_email" name="rew_email" required>
+        <br><br>
+        <label for="req_password">Password:</label>
+        <input type="req_password" id="req_password" name="req_password" required>
+        <br><br>
+        <button type="submit" name="action" value="register">Submit</button>
+    </form>
+</body>
+</html>
