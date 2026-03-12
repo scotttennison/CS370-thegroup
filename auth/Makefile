@@ -3,9 +3,9 @@
 
 CXX = g++
 
-CXXFLAGS = -Wall -I/opt/homebrew/Cellar/mysql/9.6.0_1/include
+CXXFLAGS = -Wall -I/opt/homebrew/Cellar/mysql/9.6.0_1/include -I/opt/homebrew/Cellar/openssl@3/3.6.1/include
 
-LDFLAGS = -L/opt/homebrew/Cellar/mysql/9.6.0_1/lib -L/opt/homebrew/lib -lmysqlclient -lz -lzstd -lssl -lcrypto -lresolv
+LDFLAGS = -L/opt/homebrew/Cellar/mysql/9.6.0_1/lib -L/opt/homebrew/lib -L/opt/homebrew/Cellar/openssl@3/3.6.1/lib -lmysqlclient -lz -lzstd -lssl -lcrypto -lresolv
 
 TARGET = auth.cgi
 
