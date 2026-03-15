@@ -43,27 +43,10 @@ string urlDecode(const string &encoded)
 }
 
 // This function reads and parses the form data
-map<string, string> parseFormData()
+map<string, string> parseFormData(const string &data)
 {
-
     // Create an empty container to hold our key-value pairs
     map<string, string> formData;
-
-    // Read the CONTENT_LENGTH sticky note from the web server
-    char *contentLength = getenv("CONTENT_LENGTH");
-
-    // If there is no data, return empty container
-    if (contentLength == nullptr)
-    {
-        return formData;
-    }
-
-    // Convert the content length from text to a number
-    int length = atoi(contentLength);
-
-    // Read exactly that many characters from cin
-    string data(length, ' ');
-    cin.read(&data[0], length);
 
     // Now split the data into individual pieces
     // Example: "action=login&email=scott@email.com&password=abc"
@@ -77,11 +60,14 @@ map<string, string> parseFormData()
             // Switch from reading key to reading value
             readingKey = false;
         }
-         else if (c == '&') 
-         {
+        else if (c == '&')
+        {
             // Save this pair with URL decoding and start a new one
             formData[urlDecode(key)] = urlDecode(value);
-         }
+            key.clear();
+            value.clear();
+            readingKey = true;
+        }
         else
         {
             // Add character to either key or value
@@ -108,7 +94,6 @@ map<string, string> parseFormData()
 // This function takes a password and returns a scrambled version
 string hashPassword(const string &password)
 {
-
     // Create a container for the scrambled result
     // SHA256 always produces exactly 32 bytes
     unsigned char hash[SHA256_DIGEST_LENGTH];
@@ -132,7 +117,6 @@ string hashPassword(const string &password)
 // This function connects to the MySQL database
 MYSQL *connectToDatabase()
 {
-
     // Create a MySQL connection object
     // Think of this like picking up the phone
     MYSQL *conn = mysql_init(nullptr);
@@ -156,7 +140,6 @@ MYSQL *connectToDatabase()
                            nullptr,
                            0) == nullptr)
     {
-
         // If connection failed, tell us why
         cout << "<p>Database connection failed: "
              << mysql_error(conn) << "</p>" << endl;
@@ -169,12 +152,17 @@ MYSQL *connectToDatabase()
 }
 
 // This function registers a new user
-void registerUser(MYSQL *conn, const string &email, const string &username, const string &password)
+void registerUser(MYSQL *conn, const string &username, const string &firstName, const string &lastName, const string &email, const string &password)
 {
+    // Escape all user inputs to prevent SQL injection
+    char safeEmail[512], safeUsername[512], safeFirst[512], safeLast[512];
+    mysql_real_escape_string(conn, safeEmail,    email.c_str(),     email.length());
+    mysql_real_escape_string(conn, safeUsername, username.c_str(),  username.length());
+    mysql_real_escape_string(conn, safeFirst,    firstName.c_str(), firstName.length());
+    mysql_real_escape_string(conn, safeLast,     lastName.c_str(),  lastName.length());
 
     // Step 1: Check if email already exists in database
-    // We build a SQL query like a sentence
-    string checkQuery = "SELECT user_id FROM users WHERE email = '" + email + "'";
+    string checkQuery = string("SELECT user_id FROM users WHERE email = '") + safeEmail + "'";
 
     // Send the query to MySQL
     if (mysql_query(conn, checkQuery.c_str()))
@@ -205,14 +193,12 @@ void registerUser(MYSQL *conn, const string &email, const string &username, cons
     string hashedPassword = hashPassword(password);
 
     // Step 4: Build the INSERT query to save the new user
-    string insertQuery = "INSERT INTO users (username, email, password_hash, is_active) "
-                         "VALUES ('" +
-                         username + "', "
-                                    "'" +
-                         email + "', "
-                                 "'" +
-                         hashedPassword + "', "
-                                          "1)";
+    string insertQuery = string("INSERT INTO users (username, first_name, last_name, email, password_hash, is_active) VALUES ('") +
+                         safeUsername + "', '" +
+                         safeFirst    + "', '" +
+                         safeLast     + "', '" +
+                         safeEmail    + "', '" +
+                         hashedPassword + "', 1)";
 
     // Step 5: Run the INSERT query
     if (mysql_query(conn, insertQuery.c_str()))
@@ -231,17 +217,17 @@ void registerUser(MYSQL *conn, const string &email, const string &username, cons
 // This function logs in an existing user
 void loginUser(MYSQL *conn, const string &email, const string &password)
 {
-
     // Step 1: Hash the password they typed in
     // We need to compare it to what's stored in the database
     string hashedPassword = hashPassword(password);
 
+    // Escape user input to prevent SQL injection
+    char safeEmail[512];
+    mysql_real_escape_string(conn, safeEmail, email.c_str(), email.length());
+
     // Step 2: Build a query to find this user
-    string query = "SELECT user_id, email FROM users "
-                   "WHERE email = '" +
-                   email + "' "
-                           "AND password_hash = '" +
-                   hashedPassword + "'";
+    string query = string("SELECT user_id, email FROM users WHERE email = '") +
+                   safeEmail + "' AND password_hash = '" + hashedPassword + "'";
 
     // Step 3: Send the query to MySQL
     if (mysql_query(conn, query.c_str()))
@@ -278,24 +264,29 @@ void loginUser(MYSQL *conn, const string &email, const string &password)
 
 int main()
 {
-
     // Tell the browser we are sending HTML
     cout << "Content-Type: text/html\n\n";
 
-    // Read the form data
-    map<string, string> formData = parseFormData();
+    // Read raw data from cin ONE time only
+    string rawData;
+    char *rawLength = getenv("CONTENT_LENGTH");
+    if (rawLength != nullptr)
+    {
+        int len = atoi(rawLength);
+        rawData.resize(len);
+        cin.read(&rawData[0], len);
+    }
 
-    // DEBUG - remove later
-    cout << "<p>Raw action: [" << formData["action"] << "]</p>" << endl;
-    cout << "<p>Raw email: [" << formData["email"] << "]</p>" << endl;
-    cout << "<p>Raw username: [" << formData["username"] << "]</p>" << endl;
-    cout << "<p>Raw first_name: [" << formData["first_name"] << "]</p>" << endl;
+    // Pass raw data to parser
+    map<string, string> formData = parseFormData(rawData);
 
     // Get the individual values from the form
-    string action = formData["action"];
-    string username = formData["username"];
-    string email = formData["email"];
-    string password = formData["password"];
+    string action    = formData["action"];
+    string email     = formData["email"];
+    string password  = formData["password"];
+    string username  = formData["username"];
+    string firstName = formData["first_name"];
+    string lastName  = formData["last_name"];
 
     // Print HTML page start
     cout << "<!DOCTYPE html>" << endl;
@@ -319,7 +310,7 @@ int main()
     // Decide what to do based on which button was clicked
     if (action == "register")
     {
-        registerUser(conn, username, email, password);
+        registerUser(conn, username, firstName, lastName, email, password);
     }
     else if (action == "login")
     {
